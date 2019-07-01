@@ -55,6 +55,7 @@ func (c *HAProxyController) handleHTTPS(transaction *models.Transaction) (reload
 	usingHTTPS = false
 	nativeAPI := c.NativeAPI
 	reloadRequested = false
+	acceptProxy := false
 	status := EMPTY
 	if c.osArgs.DefaultCertificate.Name == "" {
 		err := c.removeHTTPSListeners(transaction)
@@ -125,12 +126,18 @@ func (c *HAProxyController) handleHTTPS(transaction *models.Transaction) (reload
 			return reloadRequested, usingHTTPS, fmt.Errorf("no certificate")
 		}
 
+		acceptProxyVal, _ := GetValueFromAnnotations("accept-proxy-protocol", c.cfg.ConfigMap.Annotations)
+		if acceptProxyVal.Value == "enabled" {
+			acceptProxy = true
+		}
+
 		port := int64(443)
 		listener := &models.Bind{
 			Address:        "0.0.0.0",
 			Port:           &port,
 			Ssl:            true,
 			SslCertificate: HAProxyCertDir,
+			AcceptProxy:    acceptProxy,
 		}
 		usingHTTPS = true
 		listener.Name = "bind_1"

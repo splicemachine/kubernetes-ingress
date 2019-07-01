@@ -122,6 +122,7 @@ func GetValueFromAnnotations(annotationName string, annotations ...MapStringW) (
 var defaultAnnotationValues = MapStringW{
 	"ingress.class": &StringW{Value: ""},
 
+	"accept-proxy-protocol":     &StringW{Value: "disabled"},
 	"check":                     &StringW{Value: "enabled"},
 	"default-service":           &StringW{Value: ""},
 	"forwarded-for":             &StringW{Value: "enabled"},

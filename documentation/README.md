@@ -12,6 +12,7 @@ Options for starting controller can be found in [controller.md](controller.md)
 
 | Annotation | Type | Default | Dependencies | Config map | Ingress | Service |
 | - |:-:|:-:|:-:|:-:|:-:|:-:|
+| [accept-proxy-protocol](#accept-proxy-protocol) | ["enabled", "disabled"] | "disabled" |  |:large_blue_circle:|:large_white_circle:|:large_white_circle:|
 | [check](#backend-checks) | ["enabled"] | "enabled" |  |:large_blue_circle:|:large_blue_circle:|:large_blue_circle:|
 | [check-interval](#backend-checks) | [time](#time) |  | [check](#backend-checks) |:large_blue_circle:|:large_blue_circle:|:large_blue_circle:|
 | [forwarded-for](#x-forwarded-for) | ["enabled", "disabled"] | "enabled" |  |:large_blue_circle:|:large_blue_circle:|:large_blue_circle:|
@@ -45,6 +46,11 @@ Options for starting controller can be found in [controller.md](controller.md)
 > This is usefull if we want, for instance, to change default behaviour, but want to keep default for some service. etc.
 
 ### Options
+
+#### Accept Proxy Protocol
+
+- Annotation: `accept-proxy-protocol`
+- Default: "disabled"
 
 #### Balance Algorithm
 
