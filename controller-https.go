@@ -75,6 +75,14 @@ func (c *HAProxyController) handleHTTPS(transaction *models.Transaction) (reload
 		status = MODIFIED
 	}
 
+	acceptProxyVal, _ := GetValueFromAnnotations("accept-proxy-protocol", c.cfg.ConfigMap.Annotations)
+	if acceptProxyVal.Value == "enabled" {
+		acceptProxy = true
+	}
+	if status == EMPTY && acceptProxyVal.Status != EMPTY {
+		status = MODIFIED
+	}
+
 	if errSecret == nil && (status != "") {
 		secret, ok := namespace.Secret[secretData[1]]
 		if !ok {
@@ -124,11 +132,6 @@ func (c *HAProxyController) handleHTTPS(transaction *models.Transaction) (reload
 			err := c.removeHTTPSListeners(transaction)
 			LogErr(err)
 			return reloadRequested, usingHTTPS, fmt.Errorf("no certificate")
-		}
-
-		acceptProxyVal, _ := GetValueFromAnnotations("accept-proxy-protocol", c.cfg.ConfigMap.Annotations)
-		if acceptProxyVal.Value == "enabled" {
-			acceptProxy = true
 		}
 
 		port := int64(443)
