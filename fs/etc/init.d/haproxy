@@ -6,7 +6,7 @@ start)
       echo haproxy is running, pid=`cat /var/run/haproxy.pid`
       exit 1
    else
-      haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid
+      DD_TCP_KEEPALIVE_TIME=60 DD_TCP_KEEPALIVE_INTVL=5 DD_TCP_KEEPALIVE_PROBES=6 LD_PRELOAD=/usr/lib/libdontdie.so haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid
    fi   
    ;;
 stop)
@@ -29,7 +29,7 @@ status)
    ;;
 apply)   
    if [ -e /var/run/haproxy.pid ]; then
-      haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)
+      DD_TCP_KEEPALIVE_TIME=60 DD_TCP_KEEPALIVE_INTVL=5 DD_TCP_KEEPALIVE_PROBES=6 LD_PRELOAD=/usr/lib/libdontdie.so haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)
    else
       $0 start
    fi
