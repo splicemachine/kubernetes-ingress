@@ -28,6 +28,14 @@ func (c *HAProxyController) handleTCPServices() (needsReload bool, err error) {
 		if prt, errParse := strconv.ParseInt(portDest, 10, 64); errParse == nil {
 			portInt64 = prt
 		}
+
+		var sslCertificate string
+		var ssl bool
+		var alpn string
+		sslCertificate = HAProxyCertDir
+		ssl = true
+		alpn = "no-sslv3 no-tlsv10 no-tlsv11"
+
 		switch svc.Status {
 		case ADDED:
 			if err == nil {
@@ -43,14 +51,20 @@ func (c *HAProxyController) handleTCPServices() (needsReload bool, err error) {
 			err = c.frontendCreate(frontend)
 			LogErr(err)
 			err = c.frontendBindCreate(frontendName, models.Bind{
-				Address: "0.0.0.0:" + port,
-				Name:    "bind_1",
+				Address:        "0.0.0.0:" + port,
+				Name:           "bind_1",
+				Ssl:            ssl,
+				SslCertificate: sslCertificate,
+				Alpn:           alpn,
 			})
 			LogErr(err)
 			err = c.frontendBindCreate(frontendName, models.Bind{
-				Address: ":::" + port,
-				Name:    "bind_2",
-				V4v6:    true,
+				Address:        ":::" + port,
+				Name:           "bind_2",
+				V4v6:           true,
+				Ssl:            ssl,
+				SslCertificate: sslCertificate,
+				Alpn:           alpn,
 			})
 			LogErr(err)
 			ingress := &Ingress{

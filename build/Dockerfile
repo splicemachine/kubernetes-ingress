@@ -12,6 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+FROM golang:1.13.5-alpine AS libdontdie
+
+RUN apk --no-cache add git openssh gcc make automake build-base
+RUN mkdir -p /src
+RUN cd /src && \
+	git clone https://github.com/flonatel/libdontdie.git
+RUN cd /src/libdontdie/ && \
+	make
+
 FROM golang:1.13.5-alpine AS builder
 
 RUN apk --no-cache add git openssh
@@ -41,6 +50,7 @@ FROM haproxytech/haproxy-alpine:2.0.11
 
 RUN apk --no-cache add socat openssl util-linux openrc htop
 
+COPY --from=libdontdie /src/libdontdie/libdontdie.so /usr/lib/
 COPY /fs /
 COPY --from=builder /src/fs/haproxy-ingress-controller .
 
