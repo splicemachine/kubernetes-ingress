@@ -1,0 +1,184 @@
+// Define base params
+def existing_version_major = ""
+def existing_version_minor = ""
+def existing_version_hotfix = ""
+def new_hotfix_version = ""
+def diff = ""
+def git_username = "cloudspliceci"
+def git_email = "build@splicemachine.com"
+
+def skip_check = "${params.git_diff}"
+
+def vault_addr="https://vault.build.splicemachine-dev.io"
+
+def checkFolderForDiffs(path) {
+    try {
+        // git diff will return 1 for changes (failure) which is caught in catch, or
+        // 0 meaning no changes
+        sh "git diff --quiet --exit-code HEAD~1..HEAD ${path}"
+        return false
+    } catch (err) {
+        return true
+    }
+}
+
+// Launch the docker container
+node('dind') {
+
+    def dockerlogin = [
+        [$class: 'VaultSecret', path: "secret/team/docker_hub", secretValues: [
+            [$class: 'VaultSecretValue', envVar: 'username', vaultKey: 'username'],
+            [$class: 'VaultSecretValue', envVar: 'password', vaultKey: 'password']]]
+    ]
+
+    def gitlogin = [
+        [$class: 'VaultSecret', path: "secret/team/git_hub_ssh", secretValues: [
+            [$class: 'VaultSecretValue', envVar: 'git_ssh', vaultKey: 'id_rsa']]]
+    ]
+
+    def vaultlogin = [
+        [$class: 'VaultSecret', path: "secret/team/vault_jenkins", secretValues: [
+            [$class: 'VaultSecretValue', envVar: 'vault_token', vaultKey: 'token']]]
+    ]
+
+    environment {
+        VAULT_ADDR = "https://vault.build.splicemachine-dev.io"
+        VAULT_TOKEN = "$vault_token"
+    }
+
+    try {
+
+    notifyBuild('STARTED')
+
+    stage('Checkout') {
+      // Checkout code from repository
+      checkout scm
+
+    }
+
+    // Login to docker hub in the container
+    stage('Login') {
+        wrap([$class: 'VaultBuildWrapper', vaultSecrets: dockerlogin]) {
+            sh "docker login -u $username -p $password"
+        }
+    }
+
+    stage('Build') {
+        // Build image
+        def page_num = "1"
+        def master_found = ""
+        while(master_found == "") {
+            echo "Checking page $page_num"
+            master_found = sh returnStdout: true, script: "wget -q https://hub.docker.com/v2/repositories/splicemachine/kubernetes-ingress/tags?page=$page_num -O - | jq '.' | grep 'name' | grep '2\.0\.11'"
+            if (master_found == "") {
+                page_num++
+            } else {
+                echo "Master image found on page $page_num"
+            }
+        }
+        existing_version_major = sh returnStdout: true, script: "wget -q https://hub.docker.com/v2/repositories/splicemachine/kubernetes-ingress/tags\?page\=$page_num -O - | jq '.' | grep 'name' | grep '2\.0\.11' | sed 's/2.0.11_//' | cut -d '.' -f1 | sed 's/\"//g' | sed 's/,//g' | head -n 1 | cut -d ' ' -f8 | tr -d '\n'"
+        existing_version_minor = sh returnStdout: true, script: "wget -q https://hub.docker.com/v2/repositories/splicemachine/kubernetes-ingress/tags\?page\=$page_num -O - | jq '.' | grep 'name' | grep '2\.0\.11' | sed 's/2.0.11_//' | cut -d '.' -f2 | sed 's/\"//g' | sed 's/,//g' | head -n 1 | tr -d '\n'"
+        existing_version_hotfix = sh returnStdout: true, script: "wget -q https://hub.docker.com/v2/repositories/splicemachine/kubernetes-ingress/tags\?page\=$page_num -O - | jq '.' | grep 'name' | grep '2\.0\.11' | sed 's/2.0.11_//' | cut -d '.' -f3 | sed 's/\"//g' | sed 's/,//g' | head -n 1 | sed 's/[^0-9]*//g' | tr -d '\n'"
+        def ver_bump = 1;
+        new_hotfix_version = sh returnStdout: true, script: "expr $existing_version_hotfix + $ver_bump | tr -d '\n'"
+        sh "chmod +x ./build_controller.sh"
+        sh "echo 2.0.11_$existing_version_major'.'$existing_version_minor'.'$new_hotfix_version"
+        sh "nohup dockerd >/dev/null 2>&1 &"
+        sh "./build_controller.sh 2.0.11_$existing_version_major'.'$existing_version_minor'.'$new_hotfix_version"
+    }
+
+    stage('UpdateGit') {
+        wrap([$class: 'VaultBuildWrapper', vaultSecrets: gitlogin]) {
+            dir ('/root/.ssh') {
+                writeFile file: 'id_rsa', text: "$git_ssh"
+                sh "chmod 600 id_rsa"
+                writeFile file: 'config', text: "test"
+                sh "echo 'host github.com' > config"
+                sh "echo ' HostName github.com' >> config"
+                sh "echo ' IdentityFile /root/.ssh/id_rsa' >> config"
+                sh "echo ' User git' >> config"
+                sh "echo ' StrictHostKeyChecking no' >> config"
+            }
+            dir ('/home/jenkins/.ssh') {
+                // Setup SSH key for git
+                writeFile file: 'id_rsa', text: "$git_ssh"
+                sh "chmod 600 id_rsa"
+                writeFile file: 'config', text: "test"
+                sh "echo 'host github.com' > config"
+                sh "echo ' HostName github.com' >> config"
+                sh "echo ' IdentityFile /home/jenkins/.ssh/id_rsa' >> config"
+                sh "echo ' User git' >> config"
+                sh "echo ' StrictHostKeyChecking no' >> config"
+            }
+            sh "git config --global user.email '$git_email'"
+            sh "git config --global user.name '$git_username'"
+            sh "rm -fr /tmp/dbaas-infrastructure"
+            sh "git clone git@github.com:splicemachine/dbaas-infrastructure.git -q /tmp/dbaas-infrastructure"
+            sh "git status"
+            dir ('/tmp/dbaas-infrastructure/kubernetes/') {
+                sh "sed -i '/repository: splicemachine\/kubernetes-ingress/{N;s/tag: 2.0.11_.*$/tag: 2.0.11_${existing_version_major}.${existing_version_minor}.${new_hotfix_version}/}' charts/splice/values.yaml"
+                sh "cat charts/splice/values.yaml"
+                sh "git add charts/splice/values.yaml"
+            }
+            sh "git status"
+            sh "git diff > /tmp/out.txt"
+            sh "cat /tmp/out.txt"
+            // sh "git commit -m 'update kubernetes-ingress image'"
+            // sh "git push origin master"
+        }
+    }
+
+    stage('DockerPush') {
+        sh "docker push splicemachine/kubernetes-ingress:2.0.11_$existing_version_major'.'$existing_version_minor'.'$new_hotfix_version"
+    }
+
+    // stage('UpdateVault') {
+    //     wrap([$class: 'VaultBuildWrapper', vaultSecrets: vaultlogin]) {
+    //         dir ('dbaas-infrastructure/') {
+    //             // create tmp file for json block
+    //             writeFile file: 'cr.json', text: ""
+    //             writeFile file: 'crd.json', text: ""
+    //             // convert yaml to json and write to tmp file
+    //             sh "yaml2json kubernetes/operator/splicedb-operator/deploy/crds/splicedbcluster_v1beta1_splicedbcluster_cr.yaml | jq > cr.json"
+    //             sh "yaml2json kubernetes/operator/splicedb-operator/deploy/crds/splicedbcluster_v1beta1_splicedbcluster_crd.yaml | jq > crd.json"
+    //             // push new version to vault
+    //             sh "export VAULT_ADDR=https://vault.build.splicemachine-dev.io && \
+    //             vault login token=${VAULT_TOKEN} && \
+    //             vault kv put secret/deployments/k8s/default/services/cloudmanager/config/kubernetes/cr @cr.json && \
+    //             vault kv put secret/deployments/k8s/default/services/cloudmanager/config/kubernetes/crd @crd.json"
+    //         }
+    //     }
+    // }
+
+    } catch (any) {
+        // if there was an exception thrown, the build failed
+        currentBuild.result = "FAILED"
+        throw any
+
+    } finally {
+
+        // success or failure, always send notifications
+        notifyBuild(currentBuild.result)
+    }
+}
+
+def notifyBuild(String buildStatus = 'STARTED') {
+    // Build status of null means successful.
+    buildStatus =  buildStatus ?: 'SUCCESSFUL'
+    // Override default values based on build status.
+    if (buildStatus == 'STARTED' || buildStatus == 'INPUT') {
+        color = 'YELLOW'
+        colorCode = '#FFFF00'
+    } else if (buildStatus == 'CREATING' || buildStatus == 'DESTROYING'){
+        color = 'BLUE'
+        colorCode = '#0000FF'
+    } else if (buildStatus == 'SUCCESSFUL') {
+        color = 'GREEN'
+        colorCode = '#00FF00'
+    } else if (buildStatus == 'FAILED'){
+        color = 'RED'
+        colorCode = '#FF0000'
+    } else {
+        echo "End of pipeline"
+    }
+}

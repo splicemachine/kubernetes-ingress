@@ -108,9 +108,9 @@ func (c *HAProxyController) updateHAProxy() error {
 	}
 	needsReload = needsReload || reload
 
-	reload, err = c.handleDefaultService()
-	LogErr(err)
-	needsReload = needsReload || reload
+	// reload, err = c.handleDefaultService()
+	// LogErr(err)
+	// needsReload = needsReload || reload
 
 	reload, err = c.requestsTCPRefresh()
 	LogErr(err)
