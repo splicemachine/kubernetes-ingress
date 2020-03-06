@@ -118,11 +118,11 @@ node('dind') {
             dir ('/tmp/dbaas-infrastructure/kubernetes/') {
                 sh "sed -i '/repository: splicemachine\\/kubernetes-ingress/{N;s/tag: 2.0.11_.*\$/tag: 2.0.11_${existing_version_major}.${existing_version_minor}.${new_hotfix_version}/}' charts/splice/values.yaml"
                 sh "cat charts/splice/values.yaml"
+                sh "git status"
+                sh "git diff > /tmp/out.txt"
+                sh "cat /tmp/out.txt"
                 sh "git add charts/splice/values.yaml"
             }
-            sh "git status"
-            sh "git diff > /tmp/out.txt"
-            sh "cat /tmp/out.txt"
             // sh "git commit -m 'update kubernetes-ingress image'"
             // sh "git push origin master"
         }
