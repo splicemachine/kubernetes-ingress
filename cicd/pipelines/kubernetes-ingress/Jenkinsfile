@@ -122,9 +122,9 @@ node('dind') {
                 sh "git diff > /tmp/out.txt"
                 sh "cat /tmp/out.txt"
                 sh "git add charts/splice/values.yaml"
+                sh "git commit -m 'update kubernetes-ingress image'"
+                sh "git push origin master"
             }
-            // sh "git commit -m 'update kubernetes-ingress image'"
-            // sh "git push origin master"
         }
     }
 
