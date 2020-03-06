@@ -116,7 +116,7 @@ node('dind') {
             sh "git clone git@github.com:splicemachine/dbaas-infrastructure.git -q /tmp/dbaas-infrastructure"
             sh "git status"
             dir ('/tmp/dbaas-infrastructure/kubernetes/') {
-                sh "sed -i '/repository: splicemachine\/kubernetes-ingress/{N;s/tag: 2.0.11_.*$/tag: 2.0.11_${existing_version_major}.${existing_version_minor}.${new_hotfix_version}/}' charts/splice/values.yaml"
+                sh "sed -i '/repository: splicemachine\\/kubernetes-ingress/{N;s/tag: 2.0.11_.*$/tag: 2.0.11_${existing_version_major}.${existing_version_minor}.${new_hotfix_version}/}' charts/splice/values.yaml"
                 sh "cat charts/splice/values.yaml"
                 sh "git add charts/splice/values.yaml"
             }
