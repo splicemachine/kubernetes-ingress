@@ -76,9 +76,9 @@ node('dind') {
                 echo "Master image found on page $page_num"
             }
         }
-        existing_version_major = sh returnStdout: true, script: "wget -q https://hub.docker.com/v2/repositories/splicemachine/kubernetes-ingress/tags\?page\=$page_num -O - | jq '.' | grep 'name' | grep '2.0.11' | sed 's/2.0.11_//' | cut -d '.' -f1 | sed 's/\"//g' | sed 's/,//g' | head -n 1 | cut -d ' ' -f8 | tr -d '\n'"
-        existing_version_minor = sh returnStdout: true, script: "wget -q https://hub.docker.com/v2/repositories/splicemachine/kubernetes-ingress/tags\?page\=$page_num -O - | jq '.' | grep 'name' | grep '2.0.11' | sed 's/2.0.11_//' | cut -d '.' -f2 | sed 's/\"//g' | sed 's/,//g' | head -n 1 | tr -d '\n'"
-        existing_version_hotfix = sh returnStdout: true, script: "wget -q https://hub.docker.com/v2/repositories/splicemachine/kubernetes-ingress/tags\?page\=$page_num -O - | jq '.' | grep 'name' | grep '2.0.11' | sed 's/2.0.11_//' | cut -d '.' -f3 | sed 's/\"//g' | sed 's/,//g' | head -n 1 | sed 's/[^0-9]*//g' | tr -d '\n'"
+        existing_version_major = sh returnStdout: true, script: "wget -q https://hub.docker.com/v2/repositories/splicemachine/kubernetes-ingress/tags?page=$page_num -O - | jq '.' | grep 'name' | grep '2.0.11' | sed 's/2.0.11_//' | cut -d '.' -f1 | sed 's/\"//g' | sed 's/,//g' | head -n 1 | cut -d ' ' -f8 | tr -d '\n'"
+        existing_version_minor = sh returnStdout: true, script: "wget -q https://hub.docker.com/v2/repositories/splicemachine/kubernetes-ingress/tags?page=$page_num -O - | jq '.' | grep 'name' | grep '2.0.11' | sed 's/2.0.11_//' | cut -d '.' -f2 | sed 's/\"//g' | sed 's/,//g' | head -n 1 | tr -d '\n'"
+        existing_version_hotfix = sh returnStdout: true, script: "wget -q https://hub.docker.com/v2/repositories/splicemachine/kubernetes-ingress/tags?page=$page_num -O - | jq '.' | grep 'name' | grep '2.0.11' | sed 's/2.0.11_//' | cut -d '.' -f3 | sed 's/\"//g' | sed 's/,//g' | head -n 1 | sed 's/[^0-9]*//g' | tr -d '\n'"
         def ver_bump = 1;
         new_hotfix_version = sh returnStdout: true, script: "expr $existing_version_hotfix + $ver_bump | tr -d '\n'"
         sh "chmod +x ./build_controller.sh"
