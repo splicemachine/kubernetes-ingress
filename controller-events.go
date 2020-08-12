@@ -494,6 +494,7 @@ func (c *HAProxyController) eventSecret(ns *Namespace, data *Secret) (updateRequ
 	updateRequired = false
 	switch data.Status {
 	case MODIFIED:
+		log.Println("The monitored secret has been modified", data.Name)
 		newSecret := data
 		oldSecret, ok := ns.Secret[data.Name]
 		if !ok {

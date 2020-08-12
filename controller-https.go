@@ -139,9 +139,11 @@ func (c *HAProxyController) handleDefaultCertificate(certs map[string]struct{}) 
 	secretAnn, defSecretErr := GetValueFromAnnotations("ssl-certificate", c.cfg.ConfigMap.Annotations)
 	writeSecret := true
 	if defSecretErr == nil {
-		if secretAnn.Status == DELETED || secretAnn.Status == EMPTY {
-			writeSecret = false
-		}
+		// Chris Maahs DBAAS-3475 This code was blocking the WRITE of the new certificate from the
+		// K8s Secret when passed in from --ssl-certificate parameter
+		// if secretAnn.Status == DELETED || secretAnn.Status == EMPTY {
+		// 	writeSecret = false
+		// }
 		secretData := strings.Split(secretAnn.Value, "/")
 		namespace, namespaceOK := c.cfg.Namespace[secretData[0]]
 		if len(secretData) == 2 && namespaceOK {
