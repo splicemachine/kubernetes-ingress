@@ -17,32 +17,24 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"syscall"
 
+	//nolint
+	_ "net/http/pprof"
+
+	c "github.com/haproxytech/kubernetes-ingress/controller"
+	"github.com/haproxytech/kubernetes-ingress/controller/utils"
 	"github.com/jessevdk/go-flags"
 )
 
-// fixed paths to haproxy items
-const (
-	FrontendHTTP   = "http"
-	FrontendHTTPS  = "https"
-	FrontendSSL    = "ssl"
-	TestFolderPath = "/tmp/haproxy-ingress/"
-	LogTypeShort   = log.LstdFlags
-	LogType        = log.LstdFlags | log.Lshortfile
-)
-
-var (
-	HAProxyCFG      = "/etc/haproxy/haproxy.cfg"
-	HAProxyCertDir  = "/etc/haproxy/certs/"
-	HAProxyStateDir = "/var/state/haproxy/"
-)
+var cfgDir string
 
 func main() {
 
-	var osArgs OSArgs
+	var osArgs utils.OSArgs
 	var parser = flags.NewParser(&osArgs, flags.IgnoreUnknown)
 	_, err := parser.Parse()
 	exitCode := 0
@@ -50,19 +42,19 @@ func main() {
 		os.Exit(exitCode)
 	}()
 	if err != nil {
-		log.Println(err)
+		fmt.Println(err)
 		exitCode = 1
 		return
 	}
+	logger := utils.GetLogger()
+	logger.SetLevel(osArgs.LogLevel.LogLevel)
 
-	defaultAnnotationValues["default-backend-service"] = &StringW{
-		Value:  fmt.Sprintf("%s/%s", osArgs.DefaultBackendService.Namespace, osArgs.DefaultBackendService.Name),
-		Status: ADDED,
-	}
-	defaultAnnotationValues["ssl-certificate"] = &StringW{
-		Value:  fmt.Sprintf("%s/%s", osArgs.DefaultCertificate.Namespace, osArgs.DefaultCertificate.Name),
-		Status: ADDED,
-	}
+	defaultBackendSvc := fmt.Sprintf("%s/%s", osArgs.DefaultBackendService.Namespace, osArgs.DefaultBackendService.Name)
+	defaultCertificate := fmt.Sprintf("%s/%s", osArgs.DefaultCertificate.Namespace, osArgs.DefaultCertificate.Name)
+	c.SetDefaultAnnotation("default-backend-service", defaultBackendSvc)
+	c.SetDefaultAnnotation("ssl-certificate", defaultCertificate)
+	c.SetDefaultAnnotation("sync-period", osArgs.SyncPeriod.String())
+	c.SetDefaultAnnotation("cache-resync-period", osArgs.ResyncPeriod.String())
 
 	if len(osArgs.Version) > 0 {
 		fmt.Printf("HAProxy Ingress Controller %s %s%s\n\n", GitTag, GitCommit, GitDirty)
@@ -80,35 +72,46 @@ func main() {
 		return
 	}
 
-	log.Println(IngressControllerInfo)
-	log.Printf("HAProxy Ingress Controller %s %s%s\n\n", GitTag, GitCommit, GitDirty)
-	log.Printf("Build from: %s\n", GitRepo)
-	log.Printf("Build date: %s\n\n", BuildTime)
-	log.Printf("ConfigMap: %s/%s\n", osArgs.ConfigMap.Namespace, osArgs.ConfigMap.Name)
-	log.Printf("Ingress class: %s\n", osArgs.IngressClass)
-	if osArgs.ConfigMapTCPServices.Name != "" {
-		log.Printf("TCP Services defined in %s/%s\n", osArgs.ConfigMapTCPServices.Namespace, osArgs.ConfigMapTCPServices.Name)
+	logger.FileName = false
+	logger.Print(IngressControllerInfo)
+	logger.Printf("HAProxy Ingress Controller %s %s%s\n", GitTag, GitCommit, GitDirty)
+	logger.Printf("Build from: %s", GitRepo)
+	logger.Printf("Build date: %s\n", BuildTime)
+	if osArgs.PprofEnabled {
+		logger.Warning("pprof endpoint exposed over https")
+		go func() {
+			logger.Error(http.ListenAndServe("127.0.0.1:6060", nil))
+		}()
 	}
+	logger.Printf("ConfigMap: %s/%s", osArgs.ConfigMap.Namespace, osArgs.ConfigMap.Name)
+	logger.Printf("Ingress class: %s", osArgs.IngressClass)
+	logger.Printf("Publish service: %s", osArgs.PublishService)
+	logger.Printf("Default backend service: %s", defaultBackendSvc)
+	logger.Printf("Default ssl certificate: %s", defaultCertificate)
+	logger.Printf("Controller sync period: %s", osArgs.SyncPeriod.String())
+	logger.Printf("Kubernetes Shared Informer default resync period: %s", osArgs.ResyncPeriod.String())
 
-	//TODO currently using default log, switch to something more convenient
-	log.SetFlags(LogType)
-	LogErr(err)
-
-	log.Printf("Default backend service: %s\n", defaultAnnotationValues["default-backend-service"].Value)
-	log.Printf("Default ssl certificate: %s\n", defaultAnnotationValues["ssl-certificate"].Value)
+	if osArgs.ConfigMapTCPServices.Name != "" {
+		logger.Printf("TCP Services defined in %s/%s", osArgs.ConfigMapTCPServices.Namespace, osArgs.ConfigMapTCPServices.Name)
+	}
+	logger.FileName = true
 
 	ctx, cancel := context.WithCancel(context.Background())
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+	signalC := make(chan os.Signal, 1)
+	signal.Notify(signalC, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1)
 	go func() {
-		<-c
+		<-signalC
 		cancel()
 	}()
 
+	cfgDir = "/etc/haproxy/"
 	if osArgs.Test {
 		setupTestEnv()
 	}
 
-	hAProxyController := HAProxyController{}
-	hAProxyController.Start(ctx, osArgs)
+	controller := c.HAProxyController{
+		HAProxyCfgDir: cfgDir,
+		Logger:        logger,
+	}
+	controller.Start(ctx, osArgs)
 }

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.13.5-alpine AS builder
+FROM golang:1.14-alpine AS builder
 
 RUN apk --no-cache add git openssh
 
@@ -37,17 +37,18 @@ RUN mkdir -p /var/run/vars && \
         -ldflags "-X main.GitRepo=$(cat /var/run/vars/GIT_REPO) -X main.GitTag=$(cat /var/run/vars/GIT_LAST_TAG) -X main.GitCommit=$(cat /var/run/vars/GIT_HEAD_COMMIT) -X main.GitDirty=$(cat /var/run/vars/GIT_MODIFIED) -X main.BuildTime=$(cat /var/run/vars/BUILD_DATE)" \
         -o fs/haproxy-ingress-controller .
 
-FROM haproxytech/haproxy-alpine:2.0.11
+FROM haproxytech/haproxy-alpine:2.1
 
-RUN apk --no-cache add socat openssl util-linux openrc htop
+RUN apk --no-cache add socat openssl util-linux openrc htop tzdata
 
 COPY /fs /
 COPY --from=builder /src/fs/haproxy-ingress-controller .
 
 ARG DUMB_INIT_SHA256=37f2c1f0372a45554f1b89924fbb134fc24c3756efaedf11e07f599494e0eff9
 RUN wget --no-check-certificate -O /dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.2/dumb-init_1.2.2_amd64 && \
+        rm -f /usr/local/bin/dataplaneapi /usr/bin/dataplaneapi && \
+        rm -f /usr/local/etc/haproxy/haproxy.cfg && \
         echo "$DUMB_INIT_SHA256  /dumb-init" | sha256sum -c - && \
-        chmod +x /dumb-init && \
-        chmod +x /etc/init.d/haproxy
+        chmod +x /dumb-init
 
 ENTRYPOINT ["/dumb-init", "--", "/start.sh"]

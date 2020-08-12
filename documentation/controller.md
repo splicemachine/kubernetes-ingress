@@ -5,8 +5,26 @@
 you can run image with arguments:
 
 - `--configmap`
-  - mandatory, must be in format `namespace/name`
+  - optional, must be in format `namespace/name`
   - default `default/haproxy-configmap`
+- `--configmap-tcp-services`
+  - optional, must be in format `namespace/name`
+  - Example:
+   ```
+   apiVersion: v1
+   kind: ConfigMap
+   metadata:
+     name: tcp
+     namespace: default
+   data:
+     3306:              # Port where the frontend is going to listen to.
+       tcp/mysql:3306   # Kuberntes service to use for the backend.
+     389:
+       tcp/ldap:389:ssl # ssl option will enable ssl offloading for target service.
+     6379:
+       tcp/redis:6379
+   ```
+  - Ports of TCP services should be exposed on the controller's kubernetes service
 - `--default-backend-service`
   - must be in format `namespace/name`
 - `--default-ssl-certificate`
@@ -28,8 +46,26 @@ you can run image with arguments:
 
 - `--namespace-blacklist`
   - optional, if listed selected namespaces will be excluded
-  - usage: same as whitellisting
+  - usage: same as whitelisting
 
 - `--publish-service`
-  - optional, must be in fromat `namespace/name`
+  - optional, must be in format `namespace/name`
   - The controller mirrors the address of the service's endpoints to the load-balancer status of all Ingress objects it satisfies.
+
+- `--cache-resync-period`
+  - optional (must adhere to [`time.Duration`](https://golang.org/pkg/time/#ParseDuration) format),
+    sets the default re-synchronization period at which the controller will re-apply the desired state
+  - fine tuning parameter useful for large scale deployments, as reported in the [issue #216](https://github.com/haproxytech/kubernetes-ingress/issues/216)
+  - default value to `10m` (_10 minutes_)
+
+- `--sync-period`
+  - optional (must adhere to [`time.Duration`](https://golang.org/pkg/time/#ParseDuration) format),
+    sets the synchronization period at which the controller executes the configuration sync
+  - default value to `5s` (_5 seconds_)
+
+- `--log`
+  - optional
+  - select log level that application outputs
+  - default: `info`
+  - available options: `error`, `warning`, `info`, `debug`, `trace`
+    

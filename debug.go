@@ -16,40 +16,51 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"time"
+
+	c "github.com/haproxytech/kubernetes-ingress/controller"
+	"github.com/haproxytech/kubernetes-ingress/controller/utils"
+)
+
+const (
+	TestFolderPath = "/tmp/haproxy-ingress/"
 )
 
 func setupTestEnv() {
-	log.Printf("Running in test env")
-	err := os.MkdirAll(TestFolderPath, 0755)
-	LogErr(err)
+	logger := utils.GetLogger()
+	logger.Info("Running in test env")
+	cfgDir = path.Join(TestFolderPath, cfgDir)
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		logger.Panic(err)
+	}
+	c.HAProxyStateDir = path.Join(TestFolderPath, "/var/state/haproxy/")
+	if err := os.MkdirAll(c.HAProxyStateDir, 0755); err != nil {
+		logger.Panic(err)
+	}
 	time.Sleep(2 * time.Second)
-	HAProxyCFG = path.Join(TestFolderPath, HAProxyCFG)
-	HAProxyCertDir = path.Join(TestFolderPath, HAProxyCertDir)
-	HAProxyStateDir = path.Join(TestFolderPath, HAProxyStateDir)
 	cmd := exec.Command("pwd")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatalf("cmd.Run() failed with %s\n", err)
+		logger.Panicf("cmd.Run() failed with %s\n", err.Error())
 	}
 	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
-		log.Fatal(err)
+		logger.Panic(err)
 	}
-	log.Println(dir)
-	copyFile(path.Join(dir, "fs/etc/haproxy/haproxy.cfg"), HAProxyCFG)
-	log.Println(string(out))
+	logger.Debug(dir)
+	copyFile(path.Join(dir, "fs/etc/haproxy/haproxy.cfg"), cfgDir)
+	logger.Debug(string(out))
 }
 
 func copyFile(src, dst string) {
+	logger := utils.GetLogger()
 	cmd := fmt.Sprintf("cp %s %s", src, dst)
-	log.Println(cmd)
+	logger.Debug(cmd)
 	result := exec.Command("bash", "-c", cmd)
 	_, err := result.CombinedOutput()
-	LogErr(err)
+	logger.Debug(err)
 }
